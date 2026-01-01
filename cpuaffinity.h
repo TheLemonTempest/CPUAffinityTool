@@ -10,10 +10,31 @@ namespace Ui { class CPUAffinity; }
 class QSpinBox;
 QT_END_NAMESPACE
 
+enum class PriorityClass {
+    Unchanged,
+    Idle,
+    BelowNormal,
+    Normal,
+    AboveNormal,
+    High,
+    RealTime
+};
+
+enum class IoPriority {
+    Unchanged,
+    VeryLow,
+    Low,
+    Normal,
+    High
+};
+
 struct AffinityConfig {
     QString processName;
     qint64  pid{0};
-    int     assignedCores{0};
+    int     assignedCores{1};
+
+    PriorityClass priorityClass{PriorityClass::Unchanged};
+    IoPriority ioPriority{IoPriority::Unchanged};
 };
 
 class CPUAffinity : public QMainWindow

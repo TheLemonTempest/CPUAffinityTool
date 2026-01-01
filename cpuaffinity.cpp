@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QLabel>
 #include <QSpinBox>
+#include <QComboBox>
 #include <QProcess>
 #include <QStandardItemModel>
 #include <QRegularExpression>
@@ -16,6 +17,76 @@
 #include <QTime>
 #include <cmath>
 #include <QThread>
+
+// ---------------------- Helpers (combo mappings) ----------------------
+
+static PriorityClass priorityFromComboIndex(int idx)
+{
+    // combo items: Idle, Below Normal, Normal, Above Normal, High, Real Time
+    switch (idx) {
+    case 0: return PriorityClass::Idle;
+    case 1: return PriorityClass::BelowNormal;
+    case 2: return PriorityClass::Normal;
+    case 3: return PriorityClass::AboveNormal;
+    case 4: return PriorityClass::High;
+    case 5: return PriorityClass::RealTime;
+    default: return PriorityClass::Unchanged;
+    }
+}
+
+static int comboIndexFromPriority(PriorityClass p)
+{
+    switch (p) {
+    case PriorityClass::Idle:        return 0;
+    case PriorityClass::BelowNormal: return 1;
+    case PriorityClass::Normal:      return 2;
+    case PriorityClass::AboveNormal: return 3;
+    case PriorityClass::High:        return 4;
+    case PriorityClass::RealTime:    return 5;
+    default: return 2; // Normal
+    }
+}
+
+static QString psPriorityString(PriorityClass p)
+{
+    // PowerShell expects: Idle, BelowNormal, Normal, AboveNormal, High, RealTime
+    switch (p) {
+    case PriorityClass::Idle:        return "Idle";
+    case PriorityClass::BelowNormal: return "BelowNormal";
+    case PriorityClass::Normal:      return "Normal";
+    case PriorityClass::AboveNormal: return "AboveNormal";
+    case PriorityClass::High:        return "High";
+    case PriorityClass::RealTime:    return "RealTime";
+    default: return QString();
+    }
+}
+
+static IoPriority ioFromComboIndex(int idx)
+{
+    // combo items: Unchanged, Very Low, Low, Normal, High
+    switch (idx) {
+    case 0: return IoPriority::Unchanged;
+    case 1: return IoPriority::VeryLow;
+    case 2: return IoPriority::Low;
+    case 3: return IoPriority::Normal;
+    case 4: return IoPriority::High;
+    default: return IoPriority::Unchanged;
+    }
+}
+
+static int comboIndexFromIo(IoPriority p)
+{
+    switch (p) {
+    case IoPriority::Unchanged: return 0;
+    case IoPriority::VeryLow:   return 1;
+    case IoPriority::Low:       return 2;
+    case IoPriority::Normal:    return 3;
+    case IoPriority::High:      return 4;
+    default: return 0;
+    }
+}
+
+// ---------------------- CPUAffinity ----------------------
 
 CPUAffinity::CPUAffinity(QWidget *parent)
     : QMainWindow(parent)
@@ -28,6 +99,8 @@ CPUAffinity::CPUAffinity(QWidget *parent)
     cfg_.processName.clear();
     cfg_.pid = 0;
     cfg_.assignedCores = 1;
+    cfg_.priorityClass = PriorityClass::Unchanged;
+    cfg_.ioPriority = IoPriority::Unchanged;
 
     refreshUiProcessLabel();
     pushConfigIntoEditors();
@@ -118,6 +191,12 @@ void CPUAffinity::pullEditorsIntoConfig()
 {
     if (auto* s = findChild<QSpinBox*>("spinBoxAssignedCores"))
         cfg_.assignedCores = s->value();
+
+    if (auto* c = findChild<QComboBox*>("comboPriorityClass"))
+        cfg_.priorityClass = priorityFromComboIndex(c->currentIndex());
+
+    if (auto* c = findChild<QComboBox*>("comboIoPriority"))
+        cfg_.ioPriority = ioFromComboIndex(c->currentIndex());
 }
 
 void CPUAffinity::pushConfigIntoEditors()
@@ -126,6 +205,12 @@ void CPUAffinity::pushConfigIntoEditors()
         s->setMaximum(totalLogicalProcessors());
         s->setValue(cfg_.assignedCores > 0 ? cfg_.assignedCores : 1);
     }
+
+    if (auto* c = findChild<QComboBox*>("comboPriorityClass"))
+        c->setCurrentIndex(comboIndexFromPriority(cfg_.priorityClass));
+
+    if (auto* c = findChild<QComboBox*>("comboIoPriority"))
+        c->setCurrentIndex(comboIndexFromIo(cfg_.ioPriority));
 }
 
 void CPUAffinity::updateProcessInfoView()
@@ -158,6 +243,7 @@ void CPUAffinity::updateProcessInfoView()
                            " MainWindowTitle=$p.MainWindowTitle;"
                            " Path=$path;"
                            " StartTime=$p.StartTime;"
+                           " PriorityClass=$p.PriorityClass;"
                            " CPU=$p.CPU;"
                            " WorkingSet64=$p.WorkingSet64;"
                            " PrivateMemorySize64=$p.PrivateMemorySize64;"
@@ -190,6 +276,7 @@ void CPUAffinity::updateProcessInfoView()
 
     const QJsonObject o = doc.object();
 
+    // Autofill cores (AssignedCores / TotalCores)
     if (o.contains("AssignedCores")) {
         cfg_.assignedCores = o.value("AssignedCores").toInt(0);
 
@@ -198,6 +285,24 @@ void CPUAffinity::updateProcessInfoView()
             s->setMaximum(total);
             s->setValue(cfg_.assignedCores > 0 ? cfg_.assignedCores : 1);
         }
+    }
+
+    // Autofill PriorityClass
+    if (o.contains("PriorityClass")) {
+        const QString pri = o.value("PriorityClass").toString().trimmed();
+
+        PriorityClass pc = PriorityClass::Unchanged;
+        if (pri.compare("Idle", Qt::CaseInsensitive) == 0) pc = PriorityClass::Idle;
+        else if (pri.compare("BelowNormal", Qt::CaseInsensitive) == 0) pc = PriorityClass::BelowNormal;
+        else if (pri.compare("Normal", Qt::CaseInsensitive) == 0) pc = PriorityClass::Normal;
+        else if (pri.compare("AboveNormal", Qt::CaseInsensitive) == 0) pc = PriorityClass::AboveNormal;
+        else if (pri.compare("High", Qt::CaseInsensitive) == 0) pc = PriorityClass::High;
+        else if (pri.compare("RealTime", Qt::CaseInsensitive) == 0) pc = PriorityClass::RealTime;
+
+        cfg_.priorityClass = pc;
+
+        if (auto* c = findChild<QComboBox*>("comboPriorityClass"))
+            c->setCurrentIndex(comboIndexFromPriority(pc));
     }
 
     auto addKV = [&](const QString& label, const QString& value) {
@@ -242,6 +347,9 @@ void CPUAffinity::updateProcessInfoView()
     } else {
         addKV("Start Time", QString());
     }
+
+    // Priority (string)
+    addKV("Priority Class", o.value("PriorityClass").toString());
 
     // CPU seconds → hh:mm:ss
     const double cpuSecs = o.value("CPU").toDouble(0.0);
@@ -366,9 +474,18 @@ void CPUAffinity::onButtonApply()
 
     int coresToAssign = cfg_.assignedCores;
     if (coresToAssign < 1) coresToAssign = 1;
-    if (coresToAssign > totalLogicalProcessors())
-        coresToAssign = totalLogicalProcessors();
+    const int total = totalLogicalProcessors();
+    if (coresToAssign > total) coresToAssign = total;
 
+    const QString priStr = psPriorityString(cfg_.priorityClass);
+    const bool doPriority = !priStr.isEmpty() && cfg_.priorityClass != PriorityClass::Unchanged;
+
+    // Note: I/O priority is not applied yet (WinAPI required for reliable support)
+    if (cfg_.ioPriority != IoPriority::Unchanged) {
+        statusBar()->showMessage("Note: I/O Priority is saved, but Apply is not implemented yet.", 4000);
+    }
+
+    // Random-core selection (keeps your original behavior)
     QString psCommand = QString(
                             "$total=(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; "
                             "$assign=%1; "
@@ -376,10 +493,16 @@ void CPUAffinity::onButtonApply()
                             "$mask=0; "
                             "$sel=Get-Random -Count $assign -InputObject (0..($total-1)); "
                             "foreach($i in $sel){ $mask=$mask -bor (1 -shl $i) }; "
-                            "(Get-Process -Id %2 -ErrorAction SilentlyContinue) | "
-                            "ForEach-Object { $_.ProcessorAffinity=$mask; "
-                            " Write-Output (\"Affinity for {0} (PID {1}) set to 0x{2:X}\" -f $_.ProcessName, $_.Id, $mask) }"
-                            ).arg(coresToAssign).arg(cfg_.pid);
+                            "$p=Get-Process -Id %2 -ErrorAction SilentlyContinue; "
+                            "if($p){ "
+                            "  $p.ProcessorAffinity=$mask; "
+                            "  if(%3){ $p.PriorityClass='%4' }; "
+                            "  Write-Output (\"Applied: {0} (PID {1}) | Cores=%1 | Priority={2}\" -f $p.ProcessName, $p.Id, $p.PriorityClass) "
+                            "}"
+                            ).arg(coresToAssign)
+                            .arg(cfg_.pid)
+                            .arg(doPriority ? "1" : "0")
+                            .arg(priStr);
 
     QProcess* ps = new QProcess(this);
     connect(ps, &QProcess::readyReadStandardOutput, this, [this, ps]() {
@@ -420,7 +543,7 @@ void CPUAffinity::onActionAbout()
                        "so you can make sure they aren't hogging all the cores.");
 }
 
-// ---------- Config I/O ----------
+// ---------------------- Config I/O ----------------------
 
 QJsonObject CPUAffinity::toJson(const AffinityConfig& c)
 {
@@ -428,6 +551,21 @@ QJsonObject CPUAffinity::toJson(const AffinityConfig& c)
     o["processName"]   = c.processName;
     o["pid"]           = QString::number(c.pid);
     o["assignedCores"] = c.assignedCores;
+
+    // store priority as PowerShell-friendly string
+    o["priorityClass"] = psPriorityString(c.priorityClass);
+
+    // store io priority as string
+    QString io;
+    switch (c.ioPriority) {
+    case IoPriority::VeryLow: io = "VeryLow"; break;
+    case IoPriority::Low:     io = "Low";     break;
+    case IoPriority::Normal:  io = "Normal";  break;
+    case IoPriority::High:    io = "High";    break;
+    default:                  io = "Unchanged"; break;
+    }
+    o["ioPriority"] = io;
+
     return o;
 }
 
@@ -436,8 +574,27 @@ AffinityConfig CPUAffinity::fromJson(const QJsonObject& o, bool* ok)
     AffinityConfig c;
     c.processName   = o.value("processName").toString();
     c.pid           = o.value("pid").toString().toLongLong();
-    c.assignedCores = o.value("assignedCores").toInt(0);
+    c.assignedCores = o.value("assignedCores").toInt(1);
     if (c.assignedCores < 1) c.assignedCores = 1;
+
+    // Priority
+    const QString pri = o.value("priorityClass").toString().trimmed();
+    c.priorityClass = PriorityClass::Unchanged;
+    if (pri.compare("Idle", Qt::CaseInsensitive) == 0) c.priorityClass = PriorityClass::Idle;
+    else if (pri.compare("BelowNormal", Qt::CaseInsensitive) == 0) c.priorityClass = PriorityClass::BelowNormal;
+    else if (pri.compare("Normal", Qt::CaseInsensitive) == 0) c.priorityClass = PriorityClass::Normal;
+    else if (pri.compare("AboveNormal", Qt::CaseInsensitive) == 0) c.priorityClass = PriorityClass::AboveNormal;
+    else if (pri.compare("High", Qt::CaseInsensitive) == 0) c.priorityClass = PriorityClass::High;
+    else if (pri.compare("RealTime", Qt::CaseInsensitive) == 0) c.priorityClass = PriorityClass::RealTime;
+
+    // I/O Priority
+    const QString io = o.value("ioPriority").toString().trimmed();
+    c.ioPriority = IoPriority::Unchanged;
+    if (io.compare("VeryLow", Qt::CaseInsensitive) == 0) c.ioPriority = IoPriority::VeryLow;
+    else if (io.compare("Low", Qt::CaseInsensitive) == 0) c.ioPriority = IoPriority::Low;
+    else if (io.compare("Normal", Qt::CaseInsensitive) == 0) c.ioPriority = IoPriority::Normal;
+    else if (io.compare("High", Qt::CaseInsensitive) == 0) c.ioPriority = IoPriority::High;
+
     if (ok) *ok = true;
     return c;
 }
@@ -464,12 +621,10 @@ bool CPUAffinity::loadConfigFrom(const QString& path)
 
 QString CPUAffinity::dialogSavePath()
 {
-    return QFileDialog::getSaveFileName(this, "Save Config",
-                                        QString(), "Affinity Config (*.affinity.json);;JSON (*.json);;All Files (*.*)");
+    return QFileDialog::getSaveFileName(this, "Save Config", QString(), "Affinity Config (*.affinity.json);;JSON (*.json);;All Files (*.*)");
 }
 
 QString CPUAffinity::dialogLoadPath()
 {
-    return QFileDialog::getOpenFileName(this, "Load Config",
-                                        QString(), "Affinity Config (*.affinity.json *.json);;All Files (*.*)");
+    return QFileDialog::getOpenFileName(this, "Load Config", QString(), "Affinity Config (*.affinity.json *.json);;All Files (*.*)");
 }

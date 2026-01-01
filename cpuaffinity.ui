@@ -187,14 +187,11 @@
        <height>281</height>
       </rect>
      </property>
-     <layout class="QGridLayout" name="gridLayout" rowminimumheight="0,0">
+     <layout class="QGridLayout" name="gridLayout" rowminimumheight="0,0,0,0,0">
       <property name="horizontalSpacing">
        <number>12</number>
       </property>
-      <item row="0" column="1">
-       <widget class="QSpinBox" name="spinBoxAssignedCores"/>
-      </item>
-      <item row="0" column="2">
+      <item row="1" column="2">
        <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Orientation::Horizontal</enum>
@@ -207,14 +204,30 @@
         </property>
        </spacer>
       </item>
-      <item row="0" column="0">
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="spinBoxAssignedCores"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelPriority">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Controls how much CPU scheduling priority this process has compared to other programs.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Higher priority can improve responsiveness, but may reduce system responsiveness if overused.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;“High” is generally safe for games.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Priority:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
        <widget class="QLabel" name="labelAssignedCores">
+        <property name="toolTip">
+         <string/>
+        </property>
         <property name="text">
          <string>Assigned Cores:</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="4" column="1">
        <spacer name="verticalSpacer">
         <property name="orientation">
          <enum>Qt::Orientation::Vertical</enum>
@@ -227,20 +240,94 @@
         </property>
        </spacer>
       </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="QComboBox" name="comboBoxPriority">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Determines how Windows schedules CPU time for this process.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Lower priority = less CPU time when the system is busy.&lt;/p&gt;&lt;p&gt;Higher priority = more CPU time, but can starve other programs.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Below Normal</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Idle</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Normal</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Above Normal</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>High</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelIOPriority">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Controls how aggressively this process can use disk and file I/O.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Higher I/O priority may improve loading times but can slow down other applications.&lt;/p&gt;&lt;p&gt;This setting may not work for all processes and may require elevated permissions.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>I/O Priority:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="2">
+       <widget class="QComboBox" name="comboBoxIOPriority">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Determines how disk and file access for this process is scheduled relative to others.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Use higher values only if the process is experiencing loading or streaming issues.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Unchanged</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Very Low</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Low</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Normal</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>High</string>
+         </property>
+        </item>
+       </widget>
+      </item>
      </layout>
     </widget>
    </widget>
-   <widget class="QPushButton" name="btnSaveConfig_2">
+   <widget class="QPushButton" name="btnLoadConfig_3">
     <property name="geometry">
      <rect>
       <x>440</x>
       <y>370</y>
-      <width>150</width>
+      <width>201</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>Save</string>
+     <string>Load Config</string>
     </property>
     <property name="icon">
      <iconset theme="QIcon::ThemeIcon::DocumentSave"/>
@@ -251,34 +338,15 @@
      <rect>
       <x>440</x>
       <y>397</y>
-      <width>150</width>
+      <width>201</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>Save As...</string>
+     <string>Save Config</string>
     </property>
     <property name="icon">
      <iconset theme="QIcon::ThemeIcon::DocumentSaveAs"/>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="btnLoadConfig_2">
-    <property name="geometry">
-     <rect>
-      <x>595</x>
-      <y>370</y>
-      <width>50</width>
-      <height>50</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <pointsize>11</pointsize>
-      <bold>true</bold>
-     </font>
-    </property>
-    <property name="icon">
-     <iconset theme="QIcon::ThemeIcon::DocumentOpen"/>
     </property>
    </widget>
   </widget>
